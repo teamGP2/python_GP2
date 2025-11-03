@@ -1,90 +1,171 @@
-import pandas as pd
+import json
 import requests
 import time
 import logging
-from tqdm import tqdm
 
-API_KEY = 'cc5834d6192d4d07b69e008e18ff7a1d'
+API_KEY = '50c52457baef420fb16cbc37314e3ba5'
 BASE_URL = 'https://api.spoonacular.com/recipes'
 
-SEARCH_REQUESTS = [
-    {'cuisine': 'Italian', 'number': 10},
-    # {'cuisine': 'Asian', 'number': 80},
-    # {'cuisine': 'Mexican', 'number': 80},
-    # {'maxReadyTime': 30, 'number': 80},
-    # {'minReadyTime': 60, 'number': 80},
-    # {'type': 'main course', 'number': 80},
-    # {'diet': 'vegetarian', 'number': 80}
-]
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def make_request(url, params):
+    api_key = API_KEY
+    all_params = {'apiKey': api_key, **params}
+
+    try:
+        response = requests.get(url, params=all_params)
+        response.raise_for_status()
+        return response.json()
+
+    except requests.exceptions.HTTPError as e:
+        if hasattr(e, 'response') and e.response.status_code == 402:
+            logging.warning("API ключ исчерпан")
+        else:
+            logging.error(f"HTTP ошибка: {e}")
+            raise
+    except Exception as e:
+        logging.error(f"Ошибка запроса: {e}")
+        raise
 
 
-def search_recipes(params):
-    url = f'{BASE_URL}/complexSearch'
-    all_params = {'apiKey': API_KEY, **params}
+def search_recipes_complex_italian():
+    cuisines = 'Italian'
 
-    response = requests.get(url, params=all_params)
-    response.raise_for_status()
+    params = {
+            'cuisine': cuisines,
+            'number': 200
+    }
 
-    data = response.json()
-    results = data.get('results', [])
-    logging.info(f"Найдено {len(results)} рецептов для параметров: {params}")
+    data = make_request(f'{BASE_URL}/complexSearch', params)
+    recipes = data.get('results', [])
+    logging.info(f"Найдено {len(recipes)} рецептов по итальянской кухни")
+    time.sleep(0.5)
 
-    return results
+    return recipes
 
 
-def get_recipe_details(recipe_id):
-    url = f'{BASE_URL}/{recipe_id}/information'
-    all_params = {'apiKey': API_KEY}
+def search_recipes_complex_mexican():
+    cuisines = 'Mexican'
 
-    response = requests.get(url, params=all_params)
-    response.raise_for_status()
+    params = {
+            'cuisine': cuisines,
+            'number': 200
+    }
 
-    data = response.json()
+    data = make_request(f'{BASE_URL}/complexSearch', params)
+    recipes = data.get('results', [])
+    logging.info(f"Найдено {len(recipes)} рецептов по мексиканской кухни")
+    time.sleep(0.5)
 
-    data.pop('instructions', None)
-    data.pop('analyzedInstructions', None)
-    data.pop('image', None)
+    return recipes
 
-    logging.info(f"Получены детали рецепта с id={recipe_id}")
 
+def search_recipes_complex_chinese():
+    cuisines = 'Chinese'
+
+    params = {
+            'cuisine': cuisines,
+            'number': 200
+    }
+
+    data = make_request(f'{BASE_URL}/complexSearch', params)
+    recipes = data.get('results', [])
+    logging.info(f"Найдено {len(recipes)} рецептов по китайской кухни")
+    time.sleep(0.5)
+
+    return recipes
+
+
+def search_recipes_complex_ready_time():
+    params = {
+        'maxReadyTime': 30,
+        'number': 200
+    }
+
+    data = make_request(f'{BASE_URL}/complexSearch', params)
+    recipes = data.get('results', [])
+    logging.info(f"Найдено {len(recipes)} рецептов по времени приготовления")
+    time.sleep(0.5)
+
+    return recipes
+
+
+def search_recipes_by_nutrients():
+    params = {
+        'maxCalories': 300,
+        'number': 200
+    }
+
+    data = make_request(f'{BASE_URL}/findByNutrients', params)
+    logging.info(f"Найдено {len(data)} рецептов по питательности")
     return data
 
 
-all_recipes = []
-used_recipes = set()
+def search_recipes_by_ingredients():
+    params = {
+        'ingredients': 'chicken',
+        'number': 200
+    }
 
-for search_params in tqdm(SEARCH_REQUESTS, desc="Обработка запросов"):
-    try:
-        search_results = search_recipes(search_params)
+    data = make_request(f'{BASE_URL}/findByIngredients', params)
+    logging.info(f"Найдено {len(data)} рецептов по ингредиентам")
+    return data
 
-        for recipe in search_results:
-            recipe_id = recipe['id']
 
-            if recipe_id in used_recipes:
-                continue
+def get_random_recipes():
+    params = {
+        'number': 300
+    }
 
-            try:
-                recipe_data = get_recipe_details(recipe_id)
+    data = make_request(f'{BASE_URL}/random', params)
+    recipes = data.get('recipes', [])
+    logging.info(f"Найдено {len(recipes)} случайных рецептов")
+    return recipes
 
-                recipe_data.update({
-                    'cuisine': ', '.join(recipe_data.get('cuisines', [])),
-                    'dishType': ', '.join(recipe_data.get('dishTypes', [])),
-                    'veryHealthy': recipe_data.get('veryHealthy', False),
-                })
 
-                all_recipes.append(recipe_data)
-                used_recipes.add(recipe_id)
-                time.sleep(0.5)
+def get_recipe_info_bulk(recipe_ids):
+    if not recipe_ids:
+        return []
 
-            except Exception as exc:
-                logging.error(f"Ошибка при получении деталей рецепта {recipe_id}: {exc}")
-                continue
+    ids_string = ','.join(map(str, recipe_ids))
+    params = {
+        'ids': ids_string
+    }
 
-    except Exception as exc:
-        logging.error(f"Ошибка при поиске с параметрами {search_params}: {exc}")
-        continue
+    logging.info(f"Запрашиваем детали для {len(recipe_ids)} рецептов одним bulk-запросом")
 
-df = pd.DataFrame(all_recipes)
+    data = make_request(f'{BASE_URL}/informationBulk', params)
 
-filename = 'reciped_and_details.csv'
-df.to_csv(filename, index=False, encoding='utf-8')
+    with open('data.json', 'w', encoding='utf-8') as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
+
+
+
+all_recipe_ids = set()
+
+try:
+    complex_recipes_italian = search_recipes_complex_italian()
+    all_recipe_ids.update(recipe.get('id') for recipe in complex_recipes_italian)
+
+    complex_recipes_mexican = search_recipes_complex_mexican()
+    all_recipe_ids.update(recipe.get('id') for recipe in complex_recipes_mexican)
+
+    complex_recipes_chinese = search_recipes_complex_chinese()
+    all_recipe_ids.update(recipe.get('id') for recipe in complex_recipes_chinese)
+
+    complex_recipes_ready_time = search_recipes_complex_ready_time()
+    all_recipe_ids.update(recipe.get('id') for recipe in complex_recipes_ready_time)
+
+    nutrient_recipes = search_recipes_by_nutrients()
+    all_recipe_ids.update(recipe.get('id') for recipe in nutrient_recipes)
+
+    ingredient_recipes = search_recipes_by_ingredients()
+    all_recipe_ids.update(recipe.get('id') for recipe in ingredient_recipes)
+
+    random_recipes = get_random_recipes()
+    all_recipe_ids.update(recipe.get('id') for recipe in random_recipes)
+
+    all_recipes_details = get_recipe_info_bulk(list(all_recipe_ids))
+
+except Exception as e:
+    print(f"Программа остановлена: {e}")
