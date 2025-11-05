@@ -5,8 +5,18 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from urllib.parse import quote
-import os
+import psutil
 
+def kill_chrome_processes(): #функция для очистки процев хрома, тк иначе компьютер начинает тупить, сделан через psutil, библиотека для управления процами, синтаксис честно взят из интернета
+    for proc in psutil.process_iter(['name']):
+        try:
+            name = proc.info['name'].lower()
+            if 'chrome' in name or 'chromedriver' in name:
+                proc.kill() 
+        except:
+            pass
+# Закрываем все процессы хрома перед началом
+kill_chrome_processes()
 with open('result_recipes.json', 'r', encoding='utf-8') as f:
     recipes = json.load(f)
 options = Options()
@@ -112,8 +122,10 @@ with open('reviews_bbc.csv', 'w', newline='', encoding='utf-8') as csvfile:
             print(f"   Ошибка: {e}")
             writer.writerow([title, "Error", 0, f"Error: {e}", "Unknown"])
         time.sleep(2)
-
-os.system('taskkill /f /im chrome.exe >nul 2>&1') # чистка всех chrome процессов, тк селениум их не закрытвает сам и комп зависает
-os.system('taskkill /f /im chromedriver.exe >nul 2>&1')
-driver.quit()
+# Закрываем драйвер и очищаем все процы хрома
+try:
+    driver.quit()
+except:
+    pass
+kill_chrome_processes()
 print("Готово!")
